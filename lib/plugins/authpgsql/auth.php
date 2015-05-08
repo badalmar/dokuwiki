@@ -29,7 +29,7 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
         // we don't want the stuff the MySQL constructor does, but the grandparent might do something
         DokuWiki_Auth_Plugin::__construct();
 
-        if(!function_exists('pg_connect')) {
+        if (!class_exists('PDO') || !in_array('pgsql', PDO::getAvailableDrivers())) {
             $this->_debug("PgSQL err: PHP Postgres extension not found.", -1, __LINE__, __FILE__);
             $this->success = false;
             return;
@@ -108,12 +108,12 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @param   bool  $wop
      * @return  bool
      */
-    protected function _chkcnf($keys, $wop = false) {
-        foreach($keys as $key) {
-            if(empty($this->conf[$key])) return false;
-        }
-        return true;
-    }
+//    protected function _chkcnf($keys, $wop = false) {
+//        foreach($keys as $key) {
+//            if(empty($this->conf[$key])) return false;
+//        }
+//        return true;
+//    }
 
     /**
      * Counts users which meet certain $filter criteria.
@@ -190,43 +190,43 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @param   bool   $force   create missing groups
      * @return  bool   true on success, false on error
      */
-    protected function _addUserToGroup($user, $group, $force = false) {
-        $newgroup = 0;
-
-        if(($this->dbcon) && ($user)) {
-            $gid = $this->_getGroupID($group);
-            if(!$gid) {
-                if($force) { // create missing groups
-                    $sql = str_replace('%{group}', addslashes($group), $this->conf['addGroup']);
-                    $this->_modifyDB($sql);
-                    //group should now exists try again to fetch it
-                    $gid      = $this->_getGroupID($group);
-                    $newgroup = 1; // group newly created
-                }
-            }
-            if(!$gid) return false; // group didn't exist and can't be created
-
-            $sql = $this->conf['addUserGroup'];
-            if(strpos($sql, '%{uid}') !== false) {
-                $uid = $this->_getUserID($user);
-                $sql = str_replace('%{uid}', addslashes($uid), $sql);
-            }
-            $sql = str_replace('%{user}', addslashes($user), $sql);
-            $sql = str_replace('%{gid}', addslashes($gid), $sql);
-            $sql = str_replace('%{group}', addslashes($group), $sql);
-            if($this->_modifyDB($sql) !== false) {
-                $this->_flushUserInfoCache($user);
-                return true;
-            }
-
-            if($newgroup) { // remove previously created group on error
-                $sql = str_replace('%{gid}', addslashes($gid), $this->conf['delGroup']);
-                $sql = str_replace('%{group}', addslashes($group), $sql);
-                $this->_modifyDB($sql);
-            }
-        }
-        return false;
-    }
+//    protected function _addUserToGroup($user, $group, $force = false) {
+//        $newgroup = 0;
+//
+//        if(($this->dbcon) && ($user)) {
+//            $gid = $this->_getGroupID($group);
+//            if(!$gid) {
+//                if($force) { // create missing groups
+//                    $sql = str_replace('%{group}', addslashes($group), $this->conf['addGroup']);
+//                    $this->_modifyDB($sql);
+//                    //group should now exists try again to fetch it
+//                    $gid      = $this->_getGroupID($group);
+//                    $newgroup = 1; // group newly created
+//                }
+//            }
+//            if(!$gid) return false; // group didn't exist and can't be created
+//
+//            $sql = $this->conf['addUserGroup'];
+//            if(strpos($sql, '%{uid}') !== false) {
+//                $uid = $this->_getUserID($user);
+//                $sql = str_replace('%{uid}', addslashes($uid), $sql);
+//            }
+//            $sql = str_replace('%{user}', addslashes($user), $sql);
+//            $sql = str_replace('%{gid}', addslashes($gid), $sql);
+//            $sql = str_replace('%{group}', addslashes($group), $sql);
+//            if($this->_modifyDB($sql) !== false) {
+//                $this->_flushUserInfoCache($user);
+//                return true;
+//            }
+//
+//            if($newgroup) { // remove previously created group on error
+//                $sql = str_replace('%{gid}', addslashes($gid), $this->conf['delGroup']);
+//                $sql = str_replace('%{group}', addslashes($group), $sql);
+//                $this->_modifyDB($sql);
+//            }
+//        }
+//        return false;
+//    }
 
     // @inherit function _delUserFromGroup($user $group)
     // @inherit function _getGroups($user)
@@ -250,43 +250,43 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @author  Chris Smith <chris@jalakai.co.uk>
      * @author  Matthias Grimm <matthiasgrimm@users.sourceforge.net>
      */
-    protected function _addUser($user, $pwd, $name, $mail, $grps) {
-        if($this->dbcon && is_array($grps)) {
-            $sql = str_replace('%{user}', addslashes($user), $this->conf['addUser']);
-            $sql = str_replace('%{pass}', addslashes($pwd), $sql);
-            $sql = str_replace('%{name}', addslashes($name), $sql);
-            $sql = str_replace('%{email}', addslashes($mail), $sql);
-            if($this->_modifyDB($sql)) {
-                $uid = $this->_getUserID($user);
-            } else {
-                return false;
-            }
-
-            $group = '';
-            $gid = false;
-
-            if($uid) {
-                foreach($grps as $group) {
-                    $gid = $this->_addUserToGroup($user, $group, true);
-                    if($gid === false) break;
-                }
-
-                if($gid !== false){
-                    $this->_flushUserInfoCache($user);
-                    return true;
-                } else {
-                    /* remove the new user and all group relations if a group can't
-                     * be assigned. Newly created groups will remain in the database
-                     * and won't be removed. This might create orphaned groups but
-                     * is not a big issue so we ignore this problem here.
-                     */
-                    $this->_delUser($user);
-                    $this->_debug("PgSQL err: Adding user '$user' to group '$group' failed.", -1, __LINE__, __FILE__);
-                }
-            }
-        }
-        return false;
-    }
+//    protected function _addUser($user, $pwd, $name, $mail, $grps) {
+//        if($this->dbcon && is_array($grps)) {
+//            $sql = str_replace('%{user}', addslashes($user), $this->conf['addUser']);
+//            $sql = str_replace('%{pass}', addslashes($pwd), $sql);
+//            $sql = str_replace('%{name}', addslashes($name), $sql);
+//            $sql = str_replace('%{email}', addslashes($mail), $sql);
+//            if($this->_modifyDB($sql)) {
+//                $uid = $this->_getUserID($user);
+//            } else {
+//                return false;
+//            }
+//
+//            $group = '';
+//            $gid = false;
+//
+//            if($uid) {
+//                foreach($grps as $group) {
+//                    $gid = $this->_addUserToGroup($user, $group, true);
+//                    if($gid === false) break;
+//                }
+//
+//                if($gid !== false){
+//                    $this->_flushUserInfoCache($user);
+//                    return true;
+//                } else {
+//                    /* remove the new user and all group relations if a group can't
+//                     * be assigned. Newly created groups will remain in the database
+//                     * and won't be removed. This might create orphaned groups but
+//                     * is not a big issue so we ignore this problem here.
+//                     */
+//                    $this->_delUser($user);
+//                    $this->_debug("PgSQL err: Adding user '$user' to group '$group' failed.", -1, __LINE__, __FILE__);
+//                }
+//            }
+//        }
+//        return false;
+//    }
 
     /**
      * Opens a connection to a database and saves the handle for further
@@ -298,26 +298,28 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @return bool
      */
     protected function _openDB() {
-        if(!$this->dbcon) {
-            $dsn = $this->conf['server'] ? 'host='.$this->conf['server'] : '';
-            $dsn .= ' port='.$this->conf['port'];
-            $dsn .= ' dbname='.$this->conf['database'];
-            $dsn .= ' user='.$this->conf['user'];
-            $dsn .= ' password='.$this->conf['password'];
-
-            $con = @pg_connect($dsn);
-            if($con) {
+        if (!$this->dbcon) {
+            $dsn = 'pgsql:dbname=' . $this->getConf('database') . ';host=' . $this->getConf('server') . '';
+            try {
+                $con = new PDO($dsn, $this->getConf('user'), $this->getConf('password'));
+                if ((preg_match('/^(\d+)\.(\d+)\.(\d+).*/', $con->getAttribute(constant("PDO::ATTR_SERVER_VERSION")), $result)) == 1) {
+                    $this->dbver = $result[1];
+                    $this->dbrev = $result[2];
+                    $this->dbsub = $result[3];
+                }
                 $this->dbcon = $con;
+                if ($this->getConf('charset')) {
+                    $con->query('SET CHARACTER SET "' . $this->getConf('charset') . '"');
+                }
                 return true; // connection and database successfully opened
-            } else {
+            } catch (PDOException $e) {
                 $this->_debug(
-                        "PgSQL err: Connection to {$this->conf['user']}@{$this->conf['server']} not possible.",
-                        -1, __LINE__, __FILE__
-                    );
+                        "PgSQL err: Connection to {$this->getConf('user')}@{$this->getConf('server')}, database {$this->getConf('database')} not possible.", -1, __LINE__, __FILE__
+                );
             }
+
             return false; // connection failed
         }
-        return true; // connection already open
     }
 
     /**
@@ -325,12 +327,12 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      *
      * @author Matthias Grimm <matthiasgrimm@users.sourceforge.net>
      */
-    protected function _closeDB() {
-        if($this->dbcon) {
-            pg_close($this->dbcon);
-            $this->dbcon = 0;
-        }
-    }
+//    protected function _closeDB() {
+//        if($this->dbcon) {
+//            pg_close($this->dbcon);
+//            $this->dbcon = 0;
+//        }
+//    }
 
     /**
      * Sends a SQL query to the database and transforms the result into
@@ -344,21 +346,21 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @param  string $query  SQL string that contains the query
      * @return array|false the result table
      */
-    protected function _queryDB($query) {
-        $resultarray = array();
-        if($this->dbcon) {
-            $result = @pg_query($this->dbcon, $query);
-            if($result) {
-                while(($t = pg_fetch_assoc($result)) !== false)
-                    $resultarray[] = $t;
-                pg_free_result($result);
-                return $resultarray;
-            } else{
-                $this->_debug('PgSQL err: '.pg_last_error($this->dbcon), -1, __LINE__, __FILE__);
-            }
-        }
-        return false;
-    }
+//    protected function _queryDB($query) {
+//        $resultarray = array();
+//        if($this->dbcon) {
+//            $result = @pg_query($this->dbcon, $query);
+//            if($result) {
+//                while(($t = pg_fetch_assoc($result)) !== false)
+//                    $resultarray[] = $t;
+//                pg_free_result($result);
+//                return $resultarray;
+//            } else{
+//                $this->_debug('PgSQL err: '.$this->dbcon->errorInfo(), -1, __LINE__, __FILE__);
+//            }
+//        }
+//        return false;
+//    }
 
     /**
      * Executes an update or insert query. This differs from the
@@ -371,9 +373,9 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      */
     protected function _modifyDB($query) {
         if($this->dbcon) {
-            $result = @pg_query($this->dbcon, $query);
+            $result = $this->dbcon->query($query);
             if($result) {
-                pg_free_result($result);
+                $result->closeCursor();
                 return true;
             }
             $this->_debug('PgSQL err: '.pg_last_error($this->dbcon), -1, __LINE__, __FILE__);
@@ -422,10 +424,10 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @return string
      */
     protected function _escape($string, $like = false) {
-        $string = pg_escape_string($string);
-        if($like) {
-            $string = addcslashes($string, '%_');
-        }
+//        $string = $this->dbcon->quote($string);
+//        if($like) {
+//            $string = addcslashes($string, '%_');
+//        }
         return $string;
     }
 }
