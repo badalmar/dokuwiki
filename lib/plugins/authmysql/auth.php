@@ -1,6 +1,8 @@
 <?php
+
 // must be run within Dokuwiki
-if(!defined('DOKU_INC')) die();
+if (!defined('DOKU_INC'))
+    die();
 
 /**
  * MySQL authentication backend
@@ -12,12 +14,16 @@ if(!defined('DOKU_INC')) die();
  * @author     Jan Schumann <js@schumann-it.com>
  */
 class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
+
     /** @var resource holds the database connection */
     protected $dbcon = 0;
-    /** @var int database version*/
+
+    /** @var int database version */
     protected $dbver = 0;
+
     /** @var int database revision */
     protected $dbrev = 0;
+
     /** @var int database subrevision */
     protected $dbsub = 0;
 
@@ -35,76 +41,80 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     public function __construct() {
         parent::__construct();
 
-        if(!function_exists('mysql_connect')) {
+        if (!class_exists('PDO') || !in_array('mysql', PDO::getAvailableDrivers())) {
             $this->_debug("MySQL err: PHP MySQL extension not found.", -1, __LINE__, __FILE__);
             $this->success = false;
             return;
         }
 
         // set capabilities based upon config strings set
-        if(!$this->getConf('server') || !$this->getConf('user') || !$this->getConf('database')) {
+        if (!$this->getConf('server') || !$this->getConf('user') || !$this->getConf('database')) {
             $this->_debug("MySQL err: insufficient configuration.", -1, __LINE__, __FILE__);
 
             $this->success = false;
             return;
         }
 
-        $this->cando['addUser']   = $this->_chkcnf(
-            array(
-                 'getUserInfo',
-                 'getGroups',
-                 'addUser',
-                 'getUserID',
-                 'getGroupID',
-                 'addGroup',
-                 'addUserGroup'
-            ), true
+        $this->cando['addUser'] = $this->_chkcnf(
+                array(
+            'getUserInfo',
+            'getGroups',
+            'addUser',
+            'getUserID',
+            'getGroupID',
+            'addGroup',
+            'addUserGroup'
+                ), true
         );
-        $this->cando['delUser']   = $this->_chkcnf(
-            array(
-                 'getUserID',
-                 'delUser',
-                 'delUserRefs'
-            ), true
+        $this->cando['delUser'] = $this->_chkcnf(
+                array(
+            'getUserID',
+            'delUser',
+            'delUserRefs'
+                ), true
         );
-        $this->cando['modLogin']  = $this->_chkcnf(
-            array(
-                 'getUserID',
-                 'updateUser',
-                 'UpdateTarget'
-            ), true
+        $this->cando['modLogin'] = $this->_chkcnf(
+                array(
+            'getUserID',
+            'updateUser',
+            'UpdateTarget'
+                ), true
         );
-        $this->cando['modPass']   = $this->cando['modLogin'];
-        $this->cando['modName']   = $this->cando['modLogin'];
-        $this->cando['modMail']   = $this->cando['modLogin'];
+        $this->cando['modPass'] = $this->cando['modLogin'];
+        $this->cando['modName'] = $this->cando['modLogin'];
+        $this->cando['modMail'] = $this->cando['modLogin'];
         $this->cando['modGroups'] = $this->_chkcnf(
-            array(
-                 'getUserID',
-                 'getGroups',
-                 'getGroupID',
-                 'addGroup',
-                 'addUserGroup',
-                 'delGroup',
-                 'getGroupID',
-                 'delUserGroup'
-            ), true
+                array(
+            'getUserID',
+            'getGroups',
+            'getGroupID',
+            'addGroup',
+            'addUserGroup',
+            'delGroup',
+            'getGroupID',
+            'delUserGroup'
+                ), true
         );
         /* getGroups is not yet supported
-           $this->cando['getGroups']    = $this->_chkcnf(array('getGroups',
-           'getGroupID'),false); */
-        $this->cando['getUsers']     = $this->_chkcnf(
-            array(
-                 'getUsers',
-                 'getUserInfo',
-                 'getGroups'
-            ), false
+          $this->cando['getGroups']    = $this->_chkcnf(array('getGroups',
+          'getGroupID'),false); */
+        $this->cando['getUsers'] = $this->_chkcnf(
+                array(
+            'getUsers',
+            'getUserInfo',
+            'getGroups'
+                ), false
         );
         $this->cando['getUserCount'] = $this->_chkcnf(array('getUsers'), false);
 
-        if($this->getConf('debug') >= 2) {
+        if ($this->getConf('debug') >= 2) {
             $candoDebug = '';
-            foreach($this->cando as $cd => $value) {
-                if($value) { $value = 'yes'; } else { $value = 'no'; }
+            foreach ($this->cando as $cd => $value) {
+                if ($value) {
+                    $value = 'yes';
+                } else {
+                    $value = 'no';
+                }
                 $candoDebug .= $cd . ": " . $value . " | ";
             }
             $this->_debug("authmysql cando: " . $candoDebug, 0, __LINE__, __FILE__);
@@ -121,13 +131,14 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     protected function _chkcnf($keys, $wop = false) {
-        foreach($keys as $key) {
-            if(!$this->getConf($key)) return false;
+        foreach ($keys as $key) {
+            if (!$this->getConf($key))
+                return false;
         }
 
         /* write operation and lock array filled with tables names? */
-        if($wop && (!is_array($this->getConf('TablesToLock')) ||
-            !count($this->getConf('TablesToLock')))
+        if ($wop && (!is_array($this->getConf('TablesToLock')) ||
+                !count($this->getConf('TablesToLock')))
         ) {
             return false;
         }
@@ -154,14 +165,14 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
         global $conf;
         $rc = false;
 
-        if($this->_openDB()) {
-            $sql    = str_replace('%{user}', $this->_escape($user), $this->getConf('checkPass'));
-            $sql    = str_replace('%{pass}', $this->_escape($pass), $sql);
-            $sql    = str_replace('%{dgroup}', $this->_escape($conf['defaultgroup']), $sql);
+        if ($this->_openDB()) {
+            $sql = str_replace('%{user}', $this->_escape($user), $this->getConf('checkPass'));
+            $sql = str_replace('%{pass}', $this->_escape($pass), $sql);
+            $sql = str_replace('%{dgroup}', $this->_escape($conf['defaultgroup']), $sql);
             $result = $this->_queryDB($sql);
 
-            if($result !== false && count($result) == 1) {
-                if($this->getConf('forwardClearPass') == 1) {
+            if ($result !== false && count($result) == 1) {
+                if ($this->getConf('forwardClearPass') == 1) {
                     $rc = true;
                 } else {
                     $rc = auth_verifyPassword($pass, $result[0]['pass']);
@@ -183,12 +194,12 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      *                             when false, it maybe included, but is not required by the caller
      * @return array|bool
      */
-    public function getUserData($user, $requireGroups=true) {
-        if($this->_cacheExists($user, $requireGroups)) {
+    public function getUserData($user, $requireGroups = true) {
+        if ($this->_cacheExists($user, $requireGroups)) {
             return $this->cacheUserInfo[$user];
         }
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $this->_lockTables("READ");
             $info = $this->_getUserInfo($user, $requireGroups);
             $this->_unlockTables();
@@ -220,23 +231,23 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     public function createUser($user, $pwd, $name, $mail, $grps = null) {
         global $conf;
 
-        if($this->_openDB()) {
-            if(($info = $this->_getUserInfo($user)) !== false) {
+        if ($this->_openDB()) {
+            if (($info = $this->_getUserInfo($user)) !== false) {
                 msg($this->getLang('userexists'), -1);
                 return false; // user already exists
             }
 
             // set defaultgroup if no groups were given
-            if($grps == null) {
+            if ($grps == null) {
                 $grps = array($conf['defaultgroup']);
             }
 
             $this->_lockTables("WRITE");
             $pwd = $this->getConf('forwardClearPass') ? $pwd : auth_cryptPassword($pwd);
-            $rc  = $this->_addUser($user, $pwd, $name, $mail, $grps);
+            $rc = $this->_addUser($user, $pwd, $name, $mail, $grps);
             $this->_unlockTables();
             $this->_closeDB();
-            if(!$rc) {
+            if (!$rc) {
                 msg($this->getLang('writefail'));
                 return null;
             }
@@ -277,35 +288,36 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     public function modifyUser($user, $changes) {
         $rc = false;
 
-        if(!is_array($changes) || !count($changes)) {
+        if (!is_array($changes) || !count($changes)) {
             return true; // nothing to change
         }
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $this->_lockTables("WRITE");
 
             $rc = $this->_updateUserInfo($user, $changes);
 
-            if(!$rc) {
+            if (!$rc) {
                 msg($this->getLang('usernotexists'), -1);
-            } elseif(isset($changes['grps']) && $this->cando['modGroups']) {
+            } elseif (isset($changes['grps']) && $this->cando['modGroups']) {
                 $groups = $this->_getGroups($user);
                 $grpadd = array_diff($changes['grps'], $groups);
                 $grpdel = array_diff($groups, $changes['grps']);
 
-                foreach($grpadd as $group) {
-                    if(($this->_addUserToGroup($user, $group, true)) == false) {
+                foreach ($grpadd as $group) {
+                    if (($this->_addUserToGroup($user, $group, true)) == false) {
                         $rc = false;
                     }
                 }
 
-                foreach($grpdel as $group) {
-                    if(($this->_delUserFromGroup($user, $group)) == false) {
+                foreach ($grpdel as $group) {
+                    if (($this->_delUserFromGroup($user, $group)) == false) {
                         $rc = false;
                     }
                 }
 
-                if(!$rc) msg($this->getLang('writefail'));
+                if (!$rc)
+                    msg($this->getLang('writefail'));
             }
 
             $this->_unlockTables();
@@ -330,11 +342,11 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     function deleteUsers($users) {
         $count = 0;
 
-        if($this->_openDB()) {
-            if(is_array($users) && count($users)) {
+        if ($this->_openDB()) {
+            if (is_array($users) && count($users)) {
                 $this->_lockTables("WRITE");
-                foreach($users as $user) {
-                    if($this->_delUser($user)) {
+                foreach ($users as $user) {
+                    if ($this->_delUser($user)) {
                         $count++;
                     }
                 }
@@ -358,16 +370,16 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     public function getUserCount($filter = array()) {
         $rc = 0;
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $sql = $this->_createSQLFilter($this->getConf('getUsers'), $filter);
 
-            if($this->dbver >= 4) {
+            if ($this->dbver >= 4) {
                 $sql = substr($sql, 6); /* remove 'SELECT' or 'select' */
-                $sql = "SELECT SQL_CALC_FOUND_ROWS".$sql." LIMIT 1";
+                $sql = "SELECT SQL_CALC_FOUND_ROWS" . $sql . " LIMIT 1";
                 $this->_queryDB($sql);
                 $result = $this->_queryDB("SELECT FOUND_ROWS()");
-                $rc     = $result[0]['FOUND_ROWS()'];
-            } else if(($result = $this->_queryDB($sql)))
+                $rc = $result[0]['FOUND_ROWS()'];
+            } else if (($result = $this->_queryDB($sql)))
                 $rc = count($result);
 
             $this->_closeDB();
@@ -388,20 +400,20 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     public function retrieveUsers($first = 0, $limit = 0, $filter = array()) {
         $out = array();
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $this->_lockTables("READ");
             $sql = $this->_createSQLFilter($this->getConf('getUsers'), $filter);
-            $sql .= " ".$this->getConf('SortOrder');
-            if($limit) {
+            $sql .= " " . $this->getConf('SortOrder');
+            if ($limit) {
                 $sql .= " LIMIT $first, $limit";
-            } elseif($first) {
+            } elseif ($first) {
                 $sql .= " LIMIT $first";
             }
             $result = $this->_queryDB($sql);
 
-            if(!empty($result)) {
-                foreach($result as $user) {
-                    if(($info = $this->_getUserInfo($user['user']))) {
+            if (!empty($result)) {
+                foreach ($result as $user) {
+                    if (($info = $this->_getUserInfo($user['user']))) {
                         $out[$user['user']] = $info;
                     }
                 }
@@ -425,7 +437,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     protected function joinGroup($user, $group) {
         $rc = false;
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $this->_lockTables("WRITE");
             $rc = $this->_addUserToGroup($user, $group);
             $this->_unlockTables();
@@ -446,9 +458,9 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     protected function leaveGroup($user, $group) {
         $rc = false;
 
-        if($this->_openDB()) {
+        if ($this->_openDB()) {
             $this->_lockTables("WRITE");
-            $rc  = $this->_delUserFromGroup($user, $group);
+            $rc = $this->_delUserFromGroup($user, $group);
             $this->_unlockTables();
             $this->_closeDB();
         }
@@ -482,31 +494,32 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     protected function _addUserToGroup($user, $group, $force = false) {
         $newgroup = 0;
 
-        if(($this->dbcon) && ($user)) {
+        if (($this->dbcon) && ($user)) {
             $gid = $this->_getGroupID($group);
-            if(!$gid) {
-                if($force) { // create missing groups
-                    $sql      = str_replace('%{group}', $this->_escape($group), $this->getConf('addGroup'));
-                    $gid      = $this->_modifyDB($sql);
+            if (!$gid) {
+                if ($force) { // create missing groups
+                    $sql = str_replace('%{group}', $this->_escape($group), $this->getConf('addGroup'));
+                    $gid = $this->_modifyDB($sql);
                     $newgroup = 1; // group newly created
                 }
-                if(!$gid) return false; // group didn't exist and can't be created
+                if (!$gid)
+                    return false; // group didn't exist and can't be created
             }
 
             $sql = $this->getConf('addUserGroup');
-            if(strpos($sql, '%{uid}') !== false) {
+            if (strpos($sql, '%{uid}') !== false) {
                 $uid = $this->_getUserID($user);
                 $sql = str_replace('%{uid}', $this->_escape($uid), $sql);
             }
             $sql = str_replace('%{user}', $this->_escape($user), $sql);
             $sql = str_replace('%{gid}', $this->_escape($gid), $sql);
             $sql = str_replace('%{group}', $this->_escape($group), $sql);
-            if($this->_modifyDB($sql) !== false) {
+            if ($this->_modifyDB($sql) !== false) {
                 $this->_flushUserInfoCache($user);
                 return true;
             }
 
-            if($newgroup) { // remove previously created group on error
+            if ($newgroup) { // remove previously created group on error
                 $sql = str_replace('%{gid}', $this->_escape($gid), $this->getConf('delGroup'));
                 $sql = str_replace('%{group}', $this->_escape($group), $sql);
                 $this->_modifyDB($sql);
@@ -527,18 +540,18 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     protected function _delUserFromGroup($user, $group) {
         $rc = false;
 
-        if(($this->dbcon) && ($user)) {
+        if (($this->dbcon) && ($user)) {
             $sql = $this->getConf('delUserGroup');
-            if(strpos($sql, '%{uid}') !== false) {
+            if (strpos($sql, '%{uid}') !== false) {
                 $uid = $this->_getUserID($user);
                 $sql = str_replace('%{uid}', $this->_escape($uid), $sql);
             }
             $gid = $this->_getGroupID($group);
-            if($gid) {
+            if ($gid) {
                 $sql = str_replace('%{user}', $this->_escape($user), $sql);
                 $sql = str_replace('%{gid}', $this->_escape($gid), $sql);
                 $sql = str_replace('%{group}', $this->_escape($group), $sql);
-                $rc  = $this->_modifyDB($sql) == 0 ? true : false;
+                $rc = $this->_modifyDB($sql) == 0 ? true : false;
 
                 if ($rc) {
                     $this->_flushUserInfoCache($user);
@@ -563,12 +576,12 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
     protected function _getGroups($user) {
         $groups = array();
 
-        if($this->dbcon) {
-            $sql    = str_replace('%{user}', $this->_escape($user), $this->getConf('getGroups'));
+        if ($this->dbcon) {
+            $sql = str_replace('%{user}', $this->_escape($user), $this->getConf('getGroups'));
             $result = $this->_queryDB($sql);
 
-            if($result !== false && count($result)) {
-                foreach($result as $row) {
+            if ($result !== false && count($result)) {
+                foreach ($result as $row) {
                     $groups[] = $row['group'];
                 }
             }
@@ -590,8 +603,8 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return mixed  user id
      */
     protected function _getUserID($user) {
-        if($this->dbcon) {
-            $sql    = str_replace('%{user}', $this->_escape($user), $this->getConf('getUserID'));
+        if ($this->dbcon) {
+            $sql = str_replace('%{user}', $this->_escape($user), $this->getConf('getUserID'));
             $result = $this->_queryDB($sql);
             return $result === false ? false : $result[0]['id'];
         }
@@ -617,7 +630,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     protected function _addUser($user, $pwd, $name, $mail, $grps) {
-        if($this->dbcon && is_array($grps)) {
+        if ($this->dbcon && is_array($grps)) {
             $sql = str_replace('%{user}', $this->_escape($user), $this->getConf('addUser'));
             $sql = str_replace('%{pass}', $this->_escape($pwd), $sql);
             $sql = str_replace('%{name}', $this->_escape($name), $sql);
@@ -626,13 +639,14 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
             $gid = false;
             $group = '';
 
-            if($uid) {
-                foreach($grps as $group) {
+            if ($uid) {
+                foreach ($grps as $group) {
                     $gid = $this->_addUserToGroup($user, $group, true);
-                    if($gid === false) break;
+                    if ($gid === false)
+                        break;
                 }
 
-                if($gid !== false){
+                if ($gid !== false) {
                     $this->_flushUserInfoCache($user);
                     return true;
                 } else {
@@ -662,9 +676,9 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     protected function _delUser($user) {
-        if($this->dbcon) {
+        if ($this->dbcon) {
             $uid = $this->_getUserID($user);
-            if($uid) {
+            if ($uid) {
                 $sql = str_replace('%{uid}', $this->_escape($uid), $this->getConf('delUserRefs'));
                 $this->_modifyDB($sql);
                 $sql = str_replace('%{uid}', $this->_escape($uid), $this->getConf('delUser'));
@@ -685,7 +699,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @param  string  $user username of the user whose data is to be removed from the cache
      *                       if null, empty the whole cache
      */
-    protected function _flushUserInfoCache($user=null) {
+    protected function _flushUserInfoCache($user = null) {
         if (is_null($user)) {
             $this->cacheUserInfo = array();
         } else {
@@ -705,7 +719,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      *
      * @return bool    existence of required user information in the cache
      */
-    protected function _cacheExists($user, $requireGroups=true) {
+    protected function _cacheExists($user, $requireGroups = true) {
         if (isset($this->cacheUserInfo[$user])) {
             if (!is_array($this->cacheUserInfo[$user])) {
                 return true;          // user doesn't exist
@@ -733,7 +747,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return mixed   false|array     false if the user doesn't exist
      *                                 array containing user information if user does exist
      */
-    protected function _getUserInfo($user, $requireGroups=true, $useCache=true) {
+    protected function _getUserInfo($user, $requireGroups = true, $useCache = true) {
         $info = null;
 
         if ($useCache && isset($this->cacheUserInfo[$user])) {
@@ -768,10 +782,10 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return false|array false on error, user info on success
      */
     protected function _retrieveUserInfo($user) {
-        $sql    = str_replace('%{user}', $this->_escape($user), $this->getConf('getUserInfo'));
+        $sql = str_replace('%{user}', $this->_escape($user), $this->getConf('getUserInfo'));
         $result = $this->_queryDB($sql);
-        if($result !== false && count($result)) {
-            $info         = $result[0];
+        if ($result !== false && count($result)) {
+            $info = $result[0];
             return $info;
         }
         return false;
@@ -797,42 +811,47 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @author Matthias Grimm <matthiasgrimm@users.sourceforge.net>
      */
     protected function _updateUserInfo($user, $changes) {
-        $sql = $this->getConf('updateUser')." ";
+        $sql = $this->getConf('updateUser') . " ";
         $cnt = 0;
         $err = 0;
 
-        if($this->dbcon) {
+        if ($this->dbcon) {
             $uid = $this->_getUserID($user);
             if ($uid === false) {
                 return false;
             }
 
-            foreach($changes as $item => $value) {
-                if($item == 'user') {
-                    if(($this->_getUserID($changes['user']))) {
+            foreach ($changes as $item => $value) {
+                if ($item == 'user') {
+                    if (($this->_getUserID($changes['user']))) {
                         $err = 1; /* new username already exists */
                         break; /* abort update */
                     }
-                    if($cnt++ > 0) $sql .= ", ";
+                    if ($cnt++ > 0)
+                        $sql .= ", ";
                     $sql .= str_replace('%{user}', $value, $this->getConf('UpdateLogin'));
-                } else if($item == 'name') {
-                    if($cnt++ > 0) $sql .= ", ";
+                } else if ($item == 'name') {
+                    if ($cnt++ > 0)
+                        $sql .= ", ";
                     $sql .= str_replace('%{name}', $value, $this->getConf('UpdateName'));
-                } else if($item == 'pass') {
-                    if(!$this->getConf('forwardClearPass'))
+                } else if ($item == 'pass') {
+                    if (!$this->getConf('forwardClearPass'))
                         $value = auth_cryptPassword($value);
-                    if($cnt++ > 0) $sql .= ", ";
+                    if ($cnt++ > 0)
+                        $sql .= ", ";
                     $sql .= str_replace('%{pass}', $value, $this->getConf('UpdatePass'));
-                } else if($item == 'mail') {
-                    if($cnt++ > 0) $sql .= ", ";
+                } else if ($item == 'mail') {
+                    if ($cnt++ > 0)
+                        $sql .= ", ";
                     $sql .= str_replace('%{email}', $value, $this->getConf('UpdateEmail'));
                 }
             }
 
-            if($err == 0) {
-                if($cnt > 0) {
-                    $sql .= " ".str_replace('%{uid}', $uid, $this->getConf('UpdateTarget'));
-                    if(get_class($this) == 'auth_mysql') $sql .= " LIMIT 1"; //some PgSQL inheritance comp.
+            if ($err == 0) {
+                if ($cnt > 0) {
+                    $sql .= " " . str_replace('%{uid}', $uid, $this->getConf('UpdateTarget'));
+                    if (get_class($this) == 'auth_mysql')
+                        $sql .= " LIMIT 1"; //some PgSQL inheritance comp.
                     $this->_modifyDB($sql);
                     $this->_flushUserInfoCache($user);
                 }
@@ -855,8 +874,8 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return false|string group id
      */
     protected function _getGroupID($group) {
-        if($this->dbcon) {
-            $sql    = str_replace('%{group}', $this->_escape($group), $this->getConf('getGroupID'));
+        if ($this->dbcon) {
+            $sql = str_replace('%{group}', $this->_escape($group), $this->getConf('getGroupID'));
             $result = $this->_queryDB($sql);
             return $result === false ? false : $result[0]['id'];
         }
@@ -873,28 +892,23 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     protected function _openDB() {
-        if(!$this->dbcon) {
-            $con = @mysql_connect($this->getConf('server'), $this->getConf('user'), $this->getConf('password'));
-            if($con) {
-                if((mysql_select_db($this->getConf('database'), $con))) {
-                    if((preg_match('/^(\d+)\.(\d+)\.(\d+).*/', mysql_get_server_info($con), $result)) == 1) {
-                        $this->dbver = $result[1];
-                        $this->dbrev = $result[2];
-                        $this->dbsub = $result[3];
-                    }
-                    $this->dbcon = $con;
-                    if($this->getConf('charset')) {
-                        mysql_query('SET CHARACTER SET "'.$this->getConf('charset').'"', $con);
-                    }
-                    return true; // connection and database successfully opened
-                } else {
-                    mysql_close($con);
-                    $this->_debug("MySQL err: No access to database {$this->getConf('database')}.", -1, __LINE__, __FILE__);
+        if (!$this->dbcon) {
+            $dsn = 'mysql:dbname=' . $this->getConf('database') . ';host=' . $this->getConf('server') . '';
+            try {
+                $con = new PDO($dsn, $this->getConf('user'), $this->getConf('password'));
+                if ((preg_match('/^(\d+)\.(\d+)\.(\d+).*/', $con->getAttribute(constant("PDO::ATTR_SERVER_VERSION")), $result)) == 1) {
+                    $this->dbver = $result[1];
+                    $this->dbrev = $result[2];
+                    $this->dbsub = $result[3];
                 }
-            } else {
+                $this->dbcon = $con;
+                if ($this->getConf('charset')) {
+                    $con->query('SET CHARACTER SET "' . $this->getConf('charset') . '"');
+                }
+                return true; // connection and database successfully opened
+            } catch (PDOException $e) {
                 $this->_debug(
-                    "MySQL err: Connection to {$this->getConf('user')}@{$this->getConf('server')} not possible.",
-                    -1, __LINE__, __FILE__
+                        "MySQL err: Connection to {$this->getConf('user')}@{$this->getConf('server')}, database {$this->getConf('database')} not possible.", -1, __LINE__, __FILE__
                 );
             }
 
@@ -909,9 +923,8 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @author Matthias Grimm <matthiasgrimm@users.sourceforge.net>
      */
     protected function _closeDB() {
-        if($this->dbcon) {
-            mysql_close($this->dbcon);
-            $this->dbcon = 0;
+        if ($this->dbcon) {
+            $this->dbcon = null;
         }
     }
 
@@ -928,20 +941,20 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return array|false with the result table
      */
     protected function _queryDB($query) {
-        if($this->getConf('debug') >= 2) {
-            msg('MySQL query: '.hsc($query), 0, __LINE__, __FILE__);
+        if ($this->getConf('debug') >= 2) {
+            msg('MySQL query: ' . hsc($query), 0, __LINE__, __FILE__);
         }
 
         $resultarray = array();
-        if($this->dbcon) {
-            $result = @mysql_query($query, $this->dbcon);
-            if($result) {
-                while(($t = mysql_fetch_assoc($result)) !== false)
+        if ($this->dbcon) {
+            $result = $this->dbcon->query($query);
+            if ($result) {
+                while (($t = $result->fetch(PDO::FETCH_ASSOC)) !== false)
                     $resultarray[] = $t;
-                mysql_free_result($result);
+                $result->closeCursor();
                 return $resultarray;
             }
-            $this->_debug('MySQL err: '.mysql_error($this->dbcon), -1, __LINE__, __FILE__);
+            $this->_debug('MySQL err: ' . $this->dbcon->errorInfo(), -1, __LINE__, __FILE__);
         }
         return false;
     }
@@ -958,17 +971,18 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return int|bool insert id or 0, false on error
      */
     protected function _modifyDB($query) {
-        if($this->getConf('debug') >= 2) {
-            msg('MySQL query: '.hsc($query), 0, __LINE__, __FILE__);
+        if ($this->getConf('debug') >= 2) {
+            msg('MySQL query: ' . hsc($query), 0, __LINE__, __FILE__);
         }
 
-        if($this->dbcon) {
-            $result = @mysql_query($query, $this->dbcon);
-            if($result) {
-                $rc = mysql_insert_id($this->dbcon); //give back ID on insert
-                if($rc !== false) return $rc;
+        if ($this->dbcon) {
+            $result = $this->dbcon->query($query);
+            if ($result) {
+                $rc = $this->dbcon->lastInsertId(); //give back ID on insert
+                if ($rc !== false)
+                    return $rc;
             }
-            $this->_debug('MySQL err: '.mysql_error($this->dbcon), -1, __LINE__, __FILE__);
+            $this->_debug('MySQL err: ' . $this->dbcon->errorInfo(), -1, __LINE__, __FILE__);
         }
         return false;
     }
@@ -993,14 +1007,15 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     protected function _lockTables($mode) {
-        if($this->dbcon) {
+        if ($this->dbcon) {
             $ttl = $this->getConf('TablesToLock');
-            if(is_array($ttl) && !empty($ttl)) {
-                if($mode == "READ" || $mode == "WRITE") {
+            if (is_array($ttl) && !empty($ttl)) {
+                if ($mode == "READ" || $mode == "WRITE") {
                     $sql = "LOCK TABLES ";
                     $cnt = 0;
-                    foreach($ttl as $table) {
-                        if($cnt++ != 0) $sql .= ", ";
+                    foreach ($ttl as $table) {
+                        if ($cnt++ != 0)
+                            $sql .= ", ";
                         $sql .= "$table $mode";
                     }
                     $this->_modifyDB($sql);
@@ -1020,7 +1035,7 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     protected function _unlockTables() {
-        if($this->dbcon) {
+        if ($this->dbcon) {
             $this->_modifyDB("UNLOCK TABLES");
             return true;
         }
@@ -1040,22 +1055,26 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      */
     protected function _createSQLFilter($sql, $filter) {
         $SQLfilter = "";
-        $cnt       = 0;
+        $cnt = 0;
 
-        if($this->dbcon) {
-            foreach($filter as $item => $pattern) {
-                $tmp = '%'.$this->_escape($pattern).'%';
-                if($item == 'user') {
-                    if($cnt++ > 0) $SQLfilter .= " AND ";
+        if ($this->dbcon) {
+            foreach ($filter as $item => $pattern) {
+                $tmp = '%' . $this->_escape($pattern) . '%';
+                if ($item == 'user') {
+                    if ($cnt++ > 0)
+                        $SQLfilter .= " AND ";
                     $SQLfilter .= str_replace('%{user}', $tmp, $this->getConf('FilterLogin'));
-                } else if($item == 'name') {
-                    if($cnt++ > 0) $SQLfilter .= " AND ";
+                } else if ($item == 'name') {
+                    if ($cnt++ > 0)
+                        $SQLfilter .= " AND ";
                     $SQLfilter .= str_replace('%{name}', $tmp, $this->getConf('FilterName'));
-                } else if($item == 'mail') {
-                    if($cnt++ > 0) $SQLfilter .= " AND ";
+                } else if ($item == 'mail') {
+                    if ($cnt++ > 0)
+                        $SQLfilter .= " AND ";
                     $SQLfilter .= str_replace('%{email}', $tmp, $this->getConf('FilterEmail'));
-                } else if($item == 'grps') {
-                    if($cnt++ > 0) $SQLfilter .= " AND ";
+                } else if ($item == 'grps') {
+                    if ($cnt++ > 0)
+                        $SQLfilter .= " AND ";
                     $SQLfilter .= str_replace('%{group}', $tmp, $this->getConf('FilterGroup'));
                 }
             }
@@ -1064,9 +1083,9 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
             // any of cnf['Filter????'] is not defined, a malformed SQL string
             // would be generated.
 
-            if(strlen($SQLfilter)) {
+            if (strlen($SQLfilter)) {
                 $glue = strpos(strtolower($sql), "where") ? " AND " : " WHERE ";
-                $sql  = $sql.$glue.$SQLfilter;
+                $sql = $sql . $glue . $SQLfilter;
             }
         }
 
@@ -1083,14 +1102,15 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return string
      */
     protected function _escape($string, $like = false) {
-        if($this->dbcon) {
-            $string = mysql_real_escape_string($string, $this->dbcon);
-        } else {
-            $string = addslashes($string);
-        }
-        if($like) {
-            $string = addcslashes($string, '%_');
-        }
+//        if ($this->dbcon) {
+//            $string = $this->dbcon->quote($string);
+//        } 
+//        else {
+//            $string = addslashes($string);
+//        }
+//        if ($like) {
+//            $string = addcslashes($string, '%_');
+//        }
         return $string;
     }
 
@@ -1104,7 +1124,9 @@ class auth_plugin_authmysql extends DokuWiki_Auth_Plugin {
      * @return void
      */
     protected function _debug($message, $err, $line, $file) {
-        if(!$this->getConf('debug')) return;
+        if (!$this->getConf('debug'))
+            return;
         msg($message, $err, $line, $file);
     }
+
 }
