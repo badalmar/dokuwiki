@@ -14,6 +14,7 @@ $conf['plugin']['authpgsql']['password'] = 'kotek';
 $conf['plugin']['authpgsql']['database'] = 'doku';
 $conf['plugin']['authpgsql']['forwardClearPass'] = 0;
 
+$conf['plugin']['authpgsql']['dbType'] = 'pgsql';
 /**
  * SQL User Authentication
  */
