@@ -127,7 +127,7 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
         $rc = 0;
 
         if($this->_openDB()) {
-            $sql = $this->_createSQLFilter($this->conf['getUsers'], $filter);
+            $sql = $this->_createSQLFilter($this->getConf('getUsers'), $filter);
 
             // no equivalent of SQL_CALC_FOUND_ROWS in pgsql?
             if(($result = $this->_queryDB($sql))) {
@@ -148,28 +148,28 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @param   array $filter    array of field/pattern pairs
      * @return  array userinfo (refer getUserData for internal userinfo details)
      */
-    public function retrieveUsers($first = 0, $limit = 0, $filter = array()) {
-        $out = array();
-
-        if($this->_openDB()) {
-            $this->_lockTables("READ");
-            $sql = $this->_createSQLFilter($this->conf['getUsers'], $filter);
-            $sql .= " ".$this->conf['SortOrder'];
-            if($limit) $sql .= " LIMIT $limit";
-            if($first) $sql .= " OFFSET $first";
-            $result = $this->_queryDB($sql);
-
-            foreach($result as $user) {
-                if(($info = $this->_getUserInfo($user['user']))) {
-                    $out[$user['user']] = $info;
-                }
-            }
-
-            $this->_unlockTables();
-            $this->_closeDB();
-        }
-        return $out;
-    }
+//    public function retrieveUsers($first = 0, $limit = 0, $filter = array()) {
+//        $out = array();
+//
+//        if($this->_openDB()) {
+//            $this->_lockTables("READ");
+//            $sql = $this->_createSQLFilter($this->conf['getUsers'], $filter);
+//            $sql .= " ".$this->getConf('SortOrder');
+//            if($limit) $sql .= " LIMIT $limit";
+//            if($first) $sql .= " OFFSET $first";
+//            $result = $this->_queryDB($sql);
+//
+//            foreach($result as $user) {
+//                if(($info = $this->_getUserInfo($user['user']))) {
+//                    $out[$user['user']] = $info;
+//                }
+//            }
+//
+//            $this->_unlockTables();
+//            $this->_closeDB();
+//        }
+//        return $out;
+//    }
 
     // @inherit function joinGroup($user, $group)
     // @inherit function leaveGroup($user, $group) {
@@ -423,11 +423,11 @@ class auth_plugin_authpgsql extends auth_plugin_authmysql {
      * @param  bool    $like   Escape wildcard chars as well?
      * @return string
      */
-    protected function _escape($string, $like = false) {
+//    protected function _escape($string, $like = false) {
 //        $string = $this->dbcon->quote($string);
 //        if($like) {
 //            $string = addcslashes($string, '%_');
 //        }
-        return $string;
-    }
+//        return $string;
+//    }
 }
